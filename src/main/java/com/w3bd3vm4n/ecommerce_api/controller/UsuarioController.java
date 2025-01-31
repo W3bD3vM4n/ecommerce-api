@@ -1,5 +1,6 @@
 package com.w3bd3vm4n.ecommerce_api.controller;
 
+import com.w3bd3vm4n.ecommerce_api.dto.*;
 import com.w3bd3vm4n.ecommerce_api.model.Usuario;
 import com.w3bd3vm4n.ecommerce_api.service.UsuarioService;
 import lombok.RequiredArgsConstructor;
@@ -9,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/usuario")
@@ -17,50 +19,58 @@ public class UsuarioController {
 
     private final UsuarioService usuarioService;
 
-    @GetMapping
-    public ResponseEntity<List<Usuario>> obtenerTodosLosUsuarios() {
-        List<Usuario> usuarios = usuarioService.obtenerListaUsuariosDesdeRepositorio();
-        if (usuarios.isEmpty()) {
-            return ResponseEntity.noContent().build();
-        } else {
-            return ResponseEntity.ok(usuarios);
+    private UsuarioResponseDTO convertirAUsuarioResponseDTO(Usuario usuario) {
+        UsuarioResponseDTO usuarioResponseDTO = new UsuarioResponseDTO();
+        usuarioResponseDTO.setId(usuario.getId());
+        usuarioResponseDTO.setNombre(usuario.getNombre());
+        usuarioResponseDTO.setHabilitado(usuario.getHabilitado());
+
+        if (usuario.getRol() != null) {
+            RolResponseDTO rolResponseDTO = new RolResponseDTO();
+            rolResponseDTO.setId(usuario.getRol().getId());
+            rolResponseDTO.setNombre(usuario.getRol().getNombre());
+            usuarioResponseDTO.setRol(rolResponseDTO);
         }
+
+        return usuarioResponseDTO;
+    }
+
+    @GetMapping
+    public ResponseEntity<List<UsuarioResponseDTO>> obtenerTodosLosUsuarios() {
+        List<Usuario> listaUsuarios = usuarioService.obtenerListaUsuariosDesdeRepositorio();
+        List<UsuarioResponseDTO> listaUsuariosResponseDTOs = listaUsuarios.stream()
+                .map(this::convertirAUsuarioResponseDTO)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(listaUsuariosResponseDTOs);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Usuario> obtenerUsuarioPorId(@PathVariable Long id) {
-        Optional<Usuario> usuarioOptional = usuarioService.obtenerUsuarioPorIdDesdeRepositorio(id);
-        if (usuarioOptional.isPresent()) {
-            return ResponseEntity.ok(usuarioOptional.get());
-        } else {
-            return ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<UsuarioResponseDTO> obtenerUsuarioPorId(@PathVariable Long id) {
+        return usuarioService.obtenerUsuarioPorIdDesdeRepositorio(id)
+                .map(this::convertirAUsuarioResponseDTO)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping
-    public ResponseEntity<Usuario> crearUsuario(@RequestBody Usuario usuario) {
-        Usuario usuarioCreado = usuarioService.crearUsuarioDesdeRepositorio(usuario);
-        return ResponseEntity.status(HttpStatus.CREATED).body(usuarioCreado);
+    public ResponseEntity<UsuarioResponseDTO> crearUsuario(@RequestBody UsuarioCreateDTO usuarioCreateDTO) {
+        Usuario usuarioCreado = usuarioService.crearUsuarioDesdeRepositorio(usuarioCreateDTO);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(this.convertirAUsuarioResponseDTO(usuarioCreado));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Usuario> actualizarUsuario(@PathVariable Long id, @RequestBody Usuario usuario) {
-        Optional<Usuario> actualizarUsuarioOptional = usuarioService.actualizarUsuarioDesdeRepositorio(id, usuario);
-        if (actualizarUsuarioOptional.isPresent()) {
-            return ResponseEntity.ok(actualizarUsuarioOptional.get());
-        } else {
-            return ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<UsuarioResponseDTO> actualizarUsuario(@PathVariable Long id, @RequestBody UsuarioUpdateDTO usuarioUpdateDTO) {
+        Optional<Usuario> actualizarUsuario = usuarioService.actualizarUsuarioDesdeRepositorio(id, usuarioUpdateDTO);
+        return actualizarUsuario.map(contenido -> ResponseEntity.ok(this.convertirAUsuarioResponseDTO(contenido)))
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> borrarUsuario(@PathVariable Long id) {
-        boolean borrado = usuarioService.borrarUsuarioDesdeRepositorio(id);
-        if (borrado) {
-            return ResponseEntity.noContent().build();
-        } else {
-            return ResponseEntity.notFound().build();
-        }
+        return usuarioService.borrarUsuarioDesdeRepositorio(id)
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.notFound().build();
     }
 
 }
